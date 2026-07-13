@@ -5,12 +5,12 @@ Three pieces, one app:
 ```
 project/
 ├── backend/
-│   ├── dna_analyzer.py   ← your logic, refactored to return data instead of print()
+│   ├── dna_analyzer.py   ← logic, refactored to return data instead of print()
 │   ├── main.py           ← FastAPI routes that call dna_analyzer.py
 │   └── requirements.txt
 └── frontend/             ← React (Vite) app that calls those routes
     ├── src/App.jsx
-    ├── src/api.js         ← the only file that knows the backend's URLs
+    ├── src/api.js        ← the only file that knows the backend's URLs
     └── ...
 ```
 
@@ -19,7 +19,7 @@ project/
 1. **`dna_analyzer.py` → `main.py`**
    `main.py` does `from dna_analyzer import DNAAnalyzer` and calls its methods directly — no network involved, it's a plain Python import. This is why both files must sit in the same `backend/` folder.
 
-   The only change I made to your original file: every method now **returns** a dict (e.g. `{"result": "..."}`) instead of only printing. FastAPI can't send a `print()` statement to a browser — it can only send back whatever a function *returns*. The Biopython logic itself (Seq, transcribe, translate, Restriction, PairwiseAligner, NCBIWWW) is identical to yours.
+   Every method **returns** a dict (e.g. `{"result": "..."}`) instead of only printing. FastAPI can't send a `print()` statement to a browser — it can only send back whatever a function *returns*. The Biopython logic itself (Seq, transcribe, translate, Restriction, PairwiseAligner, NCBIWWW) is identical.
 
 2. **`main.py` → the browser**
    FastAPI turns each method into an HTTP route, e.g.:
@@ -32,7 +32,7 @@ project/
    When this server runs, `POST http://127.0.0.1:8000/api/stats` with body `{"sequence": "ATGC..."}` returns JSON.
 
 3. **React → `main.py`**
-   `frontend/src/api.js` is the single place that calls `fetch('/api/...')`. Every component (`App.jsx`) imports `api` from that file and never calls `fetch` directly — so if your backend URL ever changes, you only edit one file.
+   `frontend/src/api.js` is the single place that calls `fetch('/api/...')`. Every component (`App.jsx`) imports `api` from that file and never calls `fetch` directly — so if the backend URL ever changes, you only edit one file.
 
 4. **Why `/api/...` works with no CORS headaches in dev**
    `frontend/vite.config.js` proxies any request starting with `/api` to `http://127.0.0.1:8000`. So the browser thinks it's talking to itself, Vite quietly forwards it to FastAPI. (CORS middleware is also enabled in `main.py` as a backup, needed for production where there's no Vite proxy.)
