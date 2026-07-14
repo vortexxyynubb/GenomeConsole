@@ -7,15 +7,20 @@ Run with:
 Every endpoint takes a JSON body, builds a DNAAnalyzer from the "sequence"
 field, validates it, then calls the matching method from dna_analyzer.py
 and returns its dict as JSON. See README.md for the full list of routes.
+
+/api/upload is the exception: it takes multipart form data (a file) instead
+of JSON, parses it via file_parser.py, and returns the sequence(s) found so
+the frontend can drop one into the sequence textarea.
 """
 
 from typing import Optional, List
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from dna_analyzer import DNAAnalyzer
+from file_parser import parse_sequence_file
 
 app = FastAPI(title="DNA Sequence Analyzer API")
 
@@ -72,6 +77,16 @@ def build_validated_analyzer(sequence: str) -> DNAAnalyzer:
 @app.get("/")
 def health_check():
     return {"status": "ok", "message": "DNA Analyzer API is running"}
+
+
+@app.post("/api/upload")
+async def upload_sequence_file(file: UploadFile = File(...)):
+    """Accepts a FASTA, GenBank, or plain-text file and returns the sequence(s) found."""
+    contents = await file.read()
+    result = parse_sequence_file(contents, file.filename or "uploaded_file")
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
 
 
 @app.post("/api/validate")

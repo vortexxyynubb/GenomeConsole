@@ -1,6 +1,43 @@
+# ---------- Secrets & environment files ----------
+# This is the important part: anything holding API keys, passwords, tokens.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+secrets.json
+credentials.json
+config.local.json
+*.local
+
+# ---------- Python (backend) ----------
 venv/
+env/
+.venv/
 __pycache__/
 *.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# ---------- Node / React (frontend) ----------
 node_modules/
 dist/
-.env
+build/
+.vite/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---------- Editor / OS clutter ----------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---------- Logs ----------
+*.log

@@ -3,15 +3,27 @@
 Three pieces, one app:
 
 ```
-project/
+dna_analyzer/
+├── .gitignore
+├── start-app.bat
+├── README.md
 ├── backend/
 │   ├── dna_analyzer.py   ← logic, refactored to return data instead of print()
-│   ├── main.py           ← FastAPI routes that call dna_analyzer.py
+│   ├── file_parser.py    ← parses uploaded FASTA / GenBank / plain-text files
+│   ├── main.py           ← FastAPI routes that call dna_analyzer.py & file_parser.py
 │   └── requirements.txt
 └── frontend/             ← React (Vite) app that calls those routes
-    ├── src/App.jsx
-    ├── src/api.js        ← the only file that knows the backend's URLs
-    └── ...
+    ├── index.html
+    ├── package.json
+    ├── vite.config.js
+    └── src/
+        ├── main.jsx
+        ├── App.jsx
+        ├── App.css
+        ├── api.js        ← the only file that knows the backend's URLs
+        └── components/
+            ├── SequenceTrack.jsx
+            └── CompositionBar.jsx
 ```
 
 ## How the pieces connect (the important part)
@@ -21,7 +33,10 @@ project/
 
    Every method **returns** a dict (e.g. `{"result": "..."}`) instead of only printing. FastAPI can't send a `print()` statement to a browser — it can only send back whatever a function *returns*. The Biopython logic itself (Seq, transcribe, translate, Restriction, PairwiseAligner, NCBIWWW) is identical.
 
-2. **`main.py` → the browser**
+2. **`file_parser.py` → `main.py`**
+   Same pattern as above, but for file uploads: `file_parser.parse_sequence_file(contents, filename)` takes raw file bytes and a filename, detects FASTA / GenBank / plain-text format (by extension and, as a fallback, by sniffing the content), and returns `{"records": [...]}` or `{"error": "..."}`. `main.py`'s `/api/upload` route just calls this and forwards the result.
+
+3. **`main.py` → the browser**
    FastAPI turns each method into an HTTP route, e.g.:
    ```python
    @app.post("/api/stats")
@@ -31,18 +46,28 @@ project/
    ```
    When this server runs, `POST http://127.0.0.1:8000/api/stats` with body `{"sequence": "ATGC..."}` returns JSON.
 
-3. **React → `main.py`**
+   `/api/upload` is the one exception — it takes multipart form data (a file) instead of JSON.
+
+4. **React → `main.py`**
    `frontend/src/api.js` is the single place that calls `fetch('/api/...')`. Every component (`App.jsx`) imports `api` from that file and never calls `fetch` directly — so if the backend URL ever changes, you only edit one file.
 
-4. **Why `/api/...` works with no CORS headaches in dev**
+5. **Why `/api/...` works with no CORS headaches in dev**
    `frontend/vite.config.js` proxies any request starting with `/api` to `http://127.0.0.1:8000`. So the browser thinks it's talking to itself, Vite quietly forwards it to FastAPI. (CORS middleware is also enabled in `main.py` as a backup, needed for production where there's no Vite proxy.)
 
-## Frontend redesign (if you're updating an existing setup)
+## Uploading gene files instead of pasting
 
-The frontend now uses `lucide-react` for icons (a new dependency) and different
-Google Fonts. If you already have this project running from before, just run
-`npm install` again inside `frontend/` to pull in the new package — no other
-setup changes needed.
+Click **"Upload FASTA / GenBank file"** in the Sequence Input card. Supported formats:
+
+| Extension | Format |
+|---|---|
+| `.fasta`, `.fa`, `.fna`, `.ffn`, `.frn` | FASTA |
+| `.gb`, `.gbk`, `.genbank` | GenBank |
+| `.txt`, `.seq` | Plain text (just the raw letters, no header needed) |
+
+- If the file has a **single sequence**, it loads straight into the textarea and validates automatically.
+- If the file has **multiple sequences** (a multi-FASTA), a dropdown appears listing each one (`id — description (length bp)`) so you can pick which to load.
+- Max upload size is 20 MB.
+- Format detection also falls back to sniffing file content (a `>` at the start means FASTA, a `LOCUS` line means GenBank) in case the extension is missing or unusual.
 
 ## Running it
 
@@ -64,12 +89,15 @@ npm run dev
 ```
 Visit `http://localhost:5173` — the app itself.
 
-That's it. Type a sequence in the console on the left; it auto-validates and shows stats/ribbon. Click through the tabs on the right for the other 9 tools.
+Or, on Windows, just double-click `start-app.bat` from the project root — it launches both servers and opens the browser for you.
+
+That's it. Upload a gene file or type a sequence in the console on the left; it auto-validates and shows stats/ribbon. Click through the tabs on the right for the other 9 tools.
 
 ## API reference
 
 | Method | Route | Body | Wraps |
 |---|---|---|---|
+| POST | `/api/upload` | multipart file | `file_parser.parse_sequence_file` |
 | POST | `/api/validate` | `{sequence}` | `validate_and_load` |
 | POST | `/api/stats` | `{sequence}` | `get_basic_statistics` |
 | POST | `/api/reverse-complement` | `{sequence}` | `get_reverse_complement` |
@@ -86,6 +114,7 @@ Interactive docs are auto-generated by FastAPI at `http://127.0.0.1:8000/docs` �
 
 ## Notes
 
-- **Validation happens server-side.** Every route (except `/validate` itself) calls `build_validated_analyzer()` in `main.py`, which raises an HTTP 400 with your original validation message if the sequence has bad characters. The frontend shows that message inline.
+- **Validation happens server-side.** Every route (except `/validate` and `/upload` themselves) calls `build_validated_analyzer()` in `main.py`, which raises an HTTP 400 with your original validation message if the sequence has bad characters. The frontend shows that message inline.
 - **BLAST is genuinely slow and needs internet access from wherever `main.py` runs.** If you deploy the backend somewhere with restricted egress, that one route will time out — the rest of the app doesn't depend on it.
+- **File uploads need `python-multipart` installed** (it's in `requirements.txt`) — FastAPI silently requires it for any route using `UploadFile`/`File`, and leaves it out of its own core dependencies.
 - **Deploying for real (not just local dev):** host `backend/` anywhere that runs Python (Render, Railway, a VM, etc.), host `frontend/` as a static build (`npm run build` → the `dist/` folder) on something like Vercel or Netlify, then in `vite.config.js`'s place set `VITE_API_URL` (or just hardcode the deployed backend URL in `api.js`) and update `allow_origins` in `main.py` from `"*"` to your actual frontend domain.

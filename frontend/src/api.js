@@ -15,7 +15,24 @@ async function post(path, body) {
   return data
 }
 
+// Uploads use multipart/form-data instead of JSON — no Content-Type header
+// here on purpose, the browser sets the correct multipart boundary itself.
+async function postFile(path, file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await fetch(`/api${path}`, {
+    method: 'POST',
+    body: formData,
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    throw new Error(data.detail || `Request to ${path} failed (${res.status})`)
+  }
+  return data
+}
+
 export const api = {
+  uploadFile: (file) => postFile('/upload', file),
   validate: (sequence) => post('/validate', { sequence }),
   stats: (sequence) => post('/stats', { sequence }),
   reverseComplement: (sequence) => post('/reverse-complement', { sequence }),

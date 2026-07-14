@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Dna, FlipHorizontal2, FileText, Binary, ScanSearch, Scissors,
-  Target, GitCompareArrows, Bug, Globe2,
+  Target, GitCompareArrows, Bug, Globe2, Upload,
 } from 'lucide-react'
 import { api } from './api'
 import SequenceTrack from './components/SequenceTrack'
@@ -22,11 +22,20 @@ const TOOLS = [
   { id: 'blast', label: 'NCBI BLAST', icon: Globe2 },
 ]
 
+const ACCEPTED_EXTENSIONS = '.fasta,.fa,.fna,.ffn,.frn,.gb,.gbk,.genbank,.txt,.seq'
+
 export default function App() {
   const [sequence, setSequence] = useState(SAMPLE_SEQ)
   const [validation, setValidation] = useState(null)
   const [stats, setStats] = useState(null)
   const [activeTool, setActiveTool] = useState('revcomp')
+
+  // ---- File upload state ----
+  const fileInputRef = useRef(null)
+  const [uploadedRecords, setUploadedRecords] = useState([])
+  const [uploadError, setUploadError] = useState(null)
+  const [uploadedFileName, setUploadedFileName] = useState(null)
+  const [uploading, setUploading] = useState(false)
 
   useEffect(() => {
     const handle = setTimeout(async () => {
@@ -50,6 +59,31 @@ export default function App() {
   const isValid = validation?.valid === true
   const cleanSeq = isValid ? sequence.toUpperCase().replace(/\s/g, '') : ''
   const ActiveIcon = TOOLS.find((t) => t.id === activeTool)?.icon
+
+  async function handleFileChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploading(true)
+    setUploadError(null)
+    try {
+      const data = await api.uploadFile(file)
+      setUploadedRecords(data.records)
+      setUploadedFileName(file.name)
+      setSequence(data.records[0].sequence)
+    } catch (err) {
+      setUploadError(err.message)
+      setUploadedRecords([])
+      setUploadedFileName(null)
+    } finally {
+      setUploading(false)
+      e.target.value = '' // allows re-selecting the same file later
+    }
+  }
+
+  function handleRecordSelect(e) {
+    const idx = Number(e.target.value)
+    setSequence(uploadedRecords[idx].sequence)
+  }
 
   return (
     <div className="shell">
@@ -91,6 +125,44 @@ export default function App() {
                 </span>
               )}
             </div>
+
+            <div className="upload-row">
+              <button
+                type="button"
+                className="upload-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                <Upload size={15} strokeWidth={1.75} />
+                {uploading ? 'Uploading…' : 'Upload FASTA / GenBank file'}
+              </button>
+              <span className="upload-hint">
+                {uploadedFileName ? `Loaded: ${uploadedFileName}` : 'or paste a sequence below'}
+              </span>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_EXTENSIONS}
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+              />
+            </div>
+            {uploadError && <p className="field-error">{uploadError}</p>}
+            {uploadedRecords.length > 1 && (
+              <div className="field-row" style={{ width: '100%' }}>
+                <label className="field-label">
+                  {uploadedRecords.length} sequences found in file — choose one
+                </label>
+                <select className="record-select" onChange={handleRecordSelect} defaultValue={0}>
+                  {uploadedRecords.map((r, i) => (
+                    <option key={`${r.id}-${i}`} value={i}>
+                      {r.id} — {r.description} ({r.length} bp)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             <textarea
               className="seq-input"
               value={sequence}
