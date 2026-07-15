@@ -1,120 +1,429 @@
-# DNA Sequence Analyzer — Full Stack Setup
+# 🧬 GenomeConsole
 
-Three pieces, one app:
+![React](https://img.shields.io/badge/React-19-blue)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green)
+![Python](https://img.shields.io/badge/Python-3.12-yellow)
+![Biopython](https://img.shields.io/badge/Biopython-1.84-orange)
+![Vercel](https://img.shields.io/badge/Frontend-Vercel-black)
+![Render](https://img.shields.io/badge/Backend-Render-purple)
+
+🌐 **Live Demo:** https://genome-console.vercel.app
+
+⚙️ **API Docs:** https://genomeconsole-api.onrender.com/docs
+
+
+# 🧬 GenomeConsole — Full Stack DNA Sequence Analysis Suite
+
+GenomeConsole is a full-stack bioinformatics web application that performs end-to-end DNA sequence analysis using **FastAPI**, **Biopython**, and **React**.
+
+Users can analyze DNA sequences directly in the browser, upload FASTA or GenBank files, perform multiple bioinformatics analyses, and even run live NCBI BLAST searches—all from a modern web interface.
+
+---
+
+# 🌐 Live Demo
+
+### Frontend
+https://genome-console.vercel.app
+
+### Backend API
+https://genomeconsole-api.onrender.com
+
+### FastAPI Interactive API Documentation
+https://genomeconsole-api.onrender.com/docs
+
+---
+
+# Project Structure
 
 ```
-dna_analyzer/
+GenomeConsole/
 ├── .gitignore
-├── start-app.bat
 ├── README.md
+├── start-app.bat
+│
 ├── backend/
-│   ├── dna_analyzer.py   ← logic, refactored to return data instead of print()
-│   ├── file_parser.py    ← parses uploaded FASTA / GenBank / plain-text files
-│   ├── main.py           ← FastAPI routes that call dna_analyzer.py & file_parser.py
-│   └── requirements.txt
-└── frontend/             ← React (Vite) app that calls those routes
+│   ├── dna_analyzer.py
+│   ├── file_parser.py
+│   ├── main.py
+│   ├── requirements.txt
+│   └── runtime.txt
+│
+└── frontend/
     ├── index.html
     ├── package.json
     ├── vite.config.js
-    └── src/
-        ├── main.jsx
-        ├── App.jsx
-        ├── App.css
-        ├── api.js        ← the only file that knows the backend's URLs
-        └── components/
-            ├── SequenceTrack.jsx
-            └── CompositionBar.jsx
+    ├── src/
+    │   ├── main.jsx
+    │   ├── App.jsx
+    │   ├── App.css
+    │   ├── api.js
+    │   └── components/
+    │       ├── SequenceTrack.jsx
+    │       └── CompositionBar.jsx
 ```
 
-## How the pieces connect (the important part)
+---
 
-1. **`dna_analyzer.py` → `main.py`**
-   `main.py` does `from dna_analyzer import DNAAnalyzer` and calls its methods directly — no network involved, it's a plain Python import. This is why both files must sit in the same `backend/` folder.
+# Application Architecture
 
-   Every method **returns** a dict (e.g. `{"result": "..."}`) instead of only printing. FastAPI can't send a `print()` statement to a browser — it can only send back whatever a function *returns*. The Biopython logic itself (Seq, transcribe, translate, Restriction, PairwiseAligner, NCBIWWW) is identical.
+GenomeConsole consists of three layers.
 
-2. **`file_parser.py` → `main.py`**
-   Same pattern as above, but for file uploads: `file_parser.parse_sequence_file(contents, filename)` takes raw file bytes and a filename, detects FASTA / GenBank / plain-text format (by extension and, as a fallback, by sniffing the content), and returns `{"records": [...]}` or `{"error": "..."}`. `main.py`'s `/api/upload` route just calls this and forwards the result.
+```
+React Frontend (Vercel)
 
-3. **`main.py` → the browser**
-   FastAPI turns each method into an HTTP route, e.g.:
-   ```python
-   @app.post("/api/stats")
-   def stats(req: SequenceRequest):
-       analyzer = build_validated_analyzer(req.sequence)
-       return analyzer.get_basic_statistics()
-   ```
-   When this server runs, `POST http://127.0.0.1:8000/api/stats` with body `{"sequence": "ATGC..."}` returns JSON.
+        │
+        │ HTTPS Requests
+        ▼
 
-   `/api/upload` is the one exception — it takes multipart form data (a file) instead of JSON.
+FastAPI Backend (Render)
 
-4. **React → `main.py`**
-   `frontend/src/api.js` is the single place that calls `fetch('/api/...')`. Every component (`App.jsx`) imports `api` from that file and never calls `fetch` directly — so if the backend URL ever changes, you only edit one file.
+        │
+        │ Python Function Calls
+        ▼
 
-5. **Why `/api/...` works with no CORS headaches in dev**
-   `frontend/vite.config.js` proxies any request starting with `/api` to `http://127.0.0.1:8000`. So the browser thinks it's talking to itself, Vite quietly forwards it to FastAPI. (CORS middleware is also enabled in `main.py` as a backup, needed for production where there's no Vite proxy.)
+Biopython Analysis Engine
+```
 
-## Uploading gene files instead of pasting
+The React frontend never performs biological analysis itself.
 
-Click **"Upload FASTA / GenBank file"** in the Sequence Input card. Supported formats:
+Instead, it sends requests to the FastAPI backend, which creates a `DNAAnalyzer` object and executes the requested Biopython workflow before returning JSON back to the browser.
+
+---
+
+# How Everything Connects
+
+## 1. dna_analyzer.py
+
+This file contains the complete biological analysis engine.
+
+It performs:
+
+- Sequence validation
+- Basic statistics
+- Reverse complement
+- DNA transcription
+- Protein translation
+- ORF detection
+- Restriction enzyme analysis
+- Motif search
+- Pairwise alignment
+- Mutation comparison
+- Online BLAST search
+
+Every function returns structured Python dictionaries instead of printing results.
+
+---
+
+## 2. file_parser.py
+
+Responsible for uploaded sequence files.
+
+Supported formats:
+
+- FASTA
+- GenBank
+- Plain Text
+
+The parser automatically detects the format using both
+
+- filename extension
+- file contents
+
+and returns structured JSON objects that the frontend can immediately display.
+
+---
+
+## 3. main.py
+
+FastAPI converts every DNAAnalyzer method into an API endpoint.
+
+Example:
+
+```python
+@app.post("/api/stats")
+def stats(req: SequenceRequest):
+    analyzer = build_validated_analyzer(req.sequence)
+    return analyzer.get_basic_statistics()
+```
+
+When the frontend sends
+
+```
+POST /api/stats
+```
+
+FastAPI returns JSON like
+
+```json
+{
+    "length": 1250,
+    "gc_content": 48.7
+}
+```
+
+---
+
+## 4. React Frontend
+
+The frontend never directly communicates with Biopython.
+
+Instead,
+
+```
+App.jsx
+        ↓
+api.js
+        ↓
+FastAPI
+        ↓
+DNAAnalyzer
+```
+
+`api.js` is the only file that knows where the backend API lives.
+
+For development:
+
+```
+http://127.0.0.1:8000
+```
+
+For production:
+
+```
+https://genomeconsole-api.onrender.com
+```
+
+using
+
+```
+VITE_API_URL
+```
+
+---
+
+# Features
+
+GenomeConsole currently supports
+
+- DNA Sequence Validation
+- Basic Sequence Statistics
+- GC Content Analysis
+- Reverse Complement
+- DNA → RNA Transcription
+- DNA → Protein Translation
+- Open Reading Frame Detection
+- Restriction Enzyme Mapping
+- Motif Search
+- Pairwise Sequence Alignment
+- Mutation Comparison
+- NCBI Online BLAST Search
+- FASTA Upload
+- GenBank Upload
+- Plain Text Upload
+- Multiple Sequence Selection
+- Interactive Sequence Visualization
+
+---
+
+# Supported File Formats
 
 | Extension | Format |
-|---|---|
-| `.fasta`, `.fa`, `.fna`, `.ffn`, `.frn` | FASTA |
-| `.gb`, `.gbk`, `.genbank` | GenBank |
-| `.txt`, `.seq` | Plain text (just the raw letters, no header needed) |
+|-----------|---------|
+| .fasta | FASTA |
+| .fa | FASTA |
+| .fna | FASTA |
+| .ffn | FASTA |
+| .frn | FASTA |
+| .gb | GenBank |
+| .gbk | GenBank |
+| .genbank | GenBank |
+| .txt | Plain Text |
+| .seq | Plain Text |
 
-- If the file has a **single sequence**, it loads straight into the textarea and validates automatically.
-- If the file has **multiple sequences** (a multi-FASTA), a dropdown appears listing each one (`id — description (length bp)`) so you can pick which to load.
-- Max upload size is 20 MB.
-- Format detection also falls back to sniffing file content (a `>` at the start means FASTA, a `LOCUS` line means GenBank) in case the extension is missing or unusual.
+Maximum upload size:
 
-## Running it
-
-**Terminal 1 — backend**
-```bash
-cd backend
-python3 -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
 ```
-Visit `http://127.0.0.1:8000` — you should see `{"status": "ok", ...}`.
+20 MB
+```
 
-**Terminal 2 — frontend**
-```bash
+---
+
+# Running Locally
+
+## Backend
+
+```
+cd backend
+
+python -m venv venv
+
+Windows
+
+venv\Scripts\activate
+
+Linux/macOS
+
+source venv/bin/activate
+
+pip install -r requirements.txt
+
+python -m uvicorn main:app --reload
+```
+
+Backend
+
+```
+http://127.0.0.1:8000
+```
+
+API Docs
+
+```
+http://127.0.0.1:8000/docs
+```
+
+---
+
+## Frontend
+
+```
 cd frontend
+
 npm install
+
 npm run dev
 ```
-Visit `http://localhost:5173` — the app itself.
 
-Or, on Windows, just double-click `start-app.bat` from the project root — it launches both servers and opens the browser for you.
+Frontend
 
-That's it. Upload a gene file or type a sequence in the console on the left; it auto-validates and shows stats/ribbon. Click through the tabs on the right for the other 9 tools.
+```
+http://localhost:5173
+```
 
-## API reference
+---
 
-| Method | Route | Body | Wraps |
-|---|---|---|---|
-| POST | `/api/upload` | multipart file | `file_parser.parse_sequence_file` |
-| POST | `/api/validate` | `{sequence}` | `validate_and_load` |
-| POST | `/api/stats` | `{sequence}` | `get_basic_statistics` |
-| POST | `/api/reverse-complement` | `{sequence}` | `get_reverse_complement` |
-| POST | `/api/transcribe` | `{sequence}` | `transcribe_dna` |
-| POST | `/api/translate` | `{sequence}` | `translate_dna` |
-| POST | `/api/orfs` | `{sequence, min_len_aa}` | `find_orfs` |
-| POST | `/api/restriction` | `{sequence, enzymes?}` | `restriction_analysis` |
-| POST | `/api/motif` | `{sequence, motif}` | `search_motif` |
-| POST | `/api/align` | `{sequence, target}` | `align_pairwise` |
-| POST | `/api/mutations` | `{sequence, mutant}` | `compare_mutations` |
-| POST | `/api/blast` | `{sequence}` | `run_online_blast` (slow: hits NCBI over the internet, ~30-60s) |
+## Windows Shortcut
 
-Interactive docs are auto-generated by FastAPI at `http://127.0.0.1:8000/docs` — useful for testing routes without the frontend.
+Simply double-click
 
-## Notes
+```
+start-app.bat
+```
 
-- **Validation happens server-side.** Every route (except `/validate` and `/upload` themselves) calls `build_validated_analyzer()` in `main.py`, which raises an HTTP 400 with your original validation message if the sequence has bad characters. The frontend shows that message inline.
-- **BLAST is genuinely slow and needs internet access from wherever `main.py` runs.** If you deploy the backend somewhere with restricted egress, that one route will time out — the rest of the app doesn't depend on it.
-- **File uploads need `python-multipart` installed** (it's in `requirements.txt`) — FastAPI silently requires it for any route using `UploadFile`/`File`, and leaves it out of its own core dependencies.
-- **Deploying for real (not just local dev):** host `backend/` anywhere that runs Python (Render, Railway, a VM, etc.), host `frontend/` as a static build (`npm run build` → the `dist/` folder) on something like Vercel or Netlify, then in `vite.config.js`'s place set `VITE_API_URL` (or just hardcode the deployed backend URL in `api.js`) and update `allow_origins` in `main.py` from `"*"` to your actual frontend domain.
+which automatically starts both the backend and frontend.
+
+---
+
+# API Endpoints
+
+| Method | Endpoint |
+|---------|----------|
+| POST | /api/validate |
+| POST | /api/stats |
+| POST | /api/reverse-complement |
+| POST | /api/transcribe |
+| POST | /api/translate |
+| POST | /api/orfs |
+| POST | /api/restriction |
+| POST | /api/motif |
+| POST | /api/align |
+| POST | /api/mutations |
+| POST | /api/blast |
+| POST | /api/parse-fasta |
+
+Interactive API documentation:
+
+```
+https://genomeconsole-api.onrender.com/docs
+```
+
+---
+
+# Deployment
+
+## Backend
+
+Hosted on **Render**
+
+Technology:
+
+- FastAPI
+- Uvicorn
+- Python 3.12
+- Biopython
+
+Public API:
+
+```
+https://genomeconsole-api.onrender.com
+```
+
+---
+
+## Frontend
+
+Hosted on **Vercel**
+
+Technology:
+
+- React
+- Vite
+
+Live Website:
+
+```
+https://genome-console.vercel.app
+```
+
+---
+
+# Technologies Used
+
+Frontend
+
+- React
+- Vite
+- JavaScript
+- CSS
+
+Backend
+
+- FastAPI
+- Uvicorn
+- Pydantic
+- Python
+
+Bioinformatics
+
+- Biopython
+- NCBI BLAST
+- PairwiseAligner
+- Restriction Analysis
+- SeqIO
+
+Deployment
+
+- Vercel
+- Render
+- GitHub
+
+---
+
+# Future Improvements
+
+- Multiple Sequence Alignment
+- Phylogenetic Tree Construction
+- Codon Usage Analysis
+- Primer Design
+- Protein Structure Prediction
+- Gene Annotation
+- Interactive Genome Browser
+- Downloadable PDF Reports
+- User Authentication
+- Saved Analysis History
+
+---
+
+# License
+
+This project is intended for educational, research, and portfolio purposes.
