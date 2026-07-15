@@ -3,7 +3,7 @@ REM Starts the DNA Analyzer backend + frontend, then opens the app in your brows
 REM Place this file in the SAME folder that contains "backend" and "frontend".
 
 echo Starting backend (FastAPI)...
-start "DNA Analyzer - Backend" cmd /k "cd /d %~dp0backend && call venv\Scripts\activate && uvicorn main:app --reload --port 8000"
+start "DNA Analyzer - Backend" cmd /k "cd /d %~dp0backend && call venv\Scripts\activate && python -m uvicorn main:app --reload --port 8000"
 
 echo Starting frontend (React)...
 start "DNA Analyzer - Frontend" cmd /k "cd /d %~dp0frontend && npm run dev"
