@@ -15,24 +15,20 @@ async function post(path, body) {
   return data
 }
 
-// Uploads use multipart/form-data instead of JSON — no Content-Type header
-// here on purpose, the browser sets the correct multipart boundary itself.
+// File uploads use multipart/form-data (not JSON) since the backend's
+// file_parser.py works on raw bytes + the original filename.
 async function postFile(path, file) {
   const formData = new FormData()
   formData.append('file', file)
-  const res = await fetch(`/api${path}`, {
-    method: 'POST',
-    body: formData,
-  })
+  const res = await fetch(`/api${path}`, { method: 'POST', body: formData })
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
-    throw new Error(data.detail || `Request to ${path} failed (${res.status})`)
+    throw new Error(data.detail || `Upload to ${path} failed (${res.status})`)
   }
   return data
 }
 
 export const api = {
-  uploadFile: (file) => postFile('/upload', file),
   validate: (sequence) => post('/validate', { sequence }),
   stats: (sequence) => post('/stats', { sequence }),
   reverseComplement: (sequence) => post('/reverse-complement', { sequence }),
@@ -44,4 +40,5 @@ export const api = {
   align: (sequence, target) => post('/align', { sequence, target }),
   blast: (sequence) => post('/blast', { sequence }),
   mutations: (sequence, mutant) => post('/mutations', { sequence, mutant }),
+  parseFasta: (file) => postFile('/parse-fasta', file),
 }
